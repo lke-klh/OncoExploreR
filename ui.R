@@ -1,4 +1,5 @@
 library(shiny)
+library(shinycssloaders)
 
 simulationSidebar <- function() {
   sidebarPanel(
@@ -36,13 +37,7 @@ simulationSidebar <- function() {
             choices = c("Female", "Male"),
             selected = "Female"
           ),
-          
-          selectInput(
-            inputId = "race",
-            label = "Race",
-            choices = c("White", "Black", "Asian", "Hispanic", "Other"),
-            selected = "White"
-          ),
+
           
           sliderInput(
             inputId = "age",
@@ -69,8 +64,8 @@ simulationSidebar <- function() {
             inputId = "gene_expr",
             label = "Gene expression level (exponential)",
             min = -4,
-            max = 4,
-            value = 0,
+            max = 8,
+            value = 2,
             step = 0.5
           )
         ),
@@ -237,7 +232,7 @@ ui <- tagList(
       
       .panel-body hr {
         margin: 0px 0;
-        border-top: 1px solid #AE8DC7;
+        border-top: 1px solid #7A658A;
       }
       
       .panel-body small {
@@ -256,7 +251,7 @@ ui <- tagList(
       .sidebar-actions {
         margin-top: 12px;
         padding-top: 12px;
-        border-top: 1px solid #ddd;
+        border-top: 1px solid #7A658A;
       }
       
       .sidebar-actions .btn,
@@ -453,10 +448,40 @@ ui <- tagList(
                     div(class = "panel-header", h4("Analysis Results")),
                     div(
                       class = "panel-body",
-                      plotOutput("organ_plot"),
-                      br(),
-                      h5("Summary statistics"),
-                      verbatimTextOutput("organ_stats")
+                      tabsetPanel(
+                        id = "analysis_tabs",
+                        
+                        # Tab 1: Heatmap
+                        tabPanel(
+                          title = "Top 20 Genes Heat Map",
+                          br(),
+                          withSpinner(plotOutput("plot_heatmap", height = "500px"),
+                                      type = 4,
+                                      color = "#7A658A",
+                                      size = 1)
+                        ),
+                        
+                        # Tab 2: Race
+                        tabPanel(
+                          title = "Race Breakdown",
+                          br(),
+                          plotlyOutput("plot_race", height = "500px")
+                        ),
+                        
+                        # Tab 3: Sex
+                        tabPanel(
+                          title = "Sex Breakdown",
+                          br(),
+                          plotlyOutput("plot_gender", height = "500px")
+                        ),
+                        
+                        # Tab 4: Age
+                        tabPanel(
+                          title = "Age Breakdown",
+                          br(),
+                          plotlyOutput("plot_age", width = "800px", height = "500px")
+                        )
+                      )
                     )
                   )
                 )
@@ -469,7 +494,7 @@ ui <- tagList(
     
     # Survival Analysis
     tabPanel(
-      title = "Survival Analysis",
+      title = "🧬 Survival Analysis",
       sidebarLayout(
         sidebarPanel = simulationSidebar(),
         mainPanel(
@@ -492,12 +517,41 @@ ui <- tagList(
     
     # Distribution Page
     tabPanel(
-      title = "Distribution",
+      title = "📊 Distribution",
       sidebarLayout(
         sidebarPanel = simulationSidebar(),
         mainPanel(
           h3("Distribution of Simulated Data"),
           plotOutput("dist_plot")
+        )
+      )
+    ),
+    
+    # Data Set
+    tabPanel(
+      title = "🗃️ Data Set",
+      sidebarLayout(
+        sidebarPanel = simulationSidebar(),
+        
+        mainPanel(
+          h3("Download Merged Data"),
+          p("Download the fully merged clinical and genomic dataset for the cancer type selected in the sidebar."),
+          br(),
+          
+          downloadButton("download_data_btn", "Merged Data (.csv)", class = "btn-default"),
+          
+          tags$hr(),
+          
+          h4("Preview (Top 20 Rows)"),
+          div(
+            style = "overflow-x: scroll; border: 1px solid #eee; padding: 10px;", 
+            withSpinner(
+              tableOutput("dl_data_preview"), 
+              type = 4,
+              color = "#7A658A",
+              size = 1
+            )
+          )
         )
       )
     )
