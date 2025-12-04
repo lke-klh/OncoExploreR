@@ -64,17 +64,6 @@ server <- function(input, output, session) {
     req(input$selected_organ)
     plot(1:10, rnorm(10), main = paste("Placeholder plot for", input$selected_organ))
   })
-  
-  # Placeholder
-  output$organ_stats <- renderPrint({
-    req(input$selected_organ)
-    list(
-      cancer_site = input$selected_organ,
-      n_patients = 1234,
-      median_age = 65,
-      notes = "hey"
-    )
-  })
 }
 
 
