@@ -37,7 +37,6 @@ simulationSidebar <- function() {
             choices = c("Female", "Male"),
             selected = "Female"
           ),
-
           
           sliderInput(
             inputId = "age",

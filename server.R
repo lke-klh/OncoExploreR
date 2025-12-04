@@ -56,7 +56,7 @@ server <- function(input, output, session) {
           It may be discovered incidentally or present with blood in urine, flank pain, or a mass. 
           Smoking, obesity, hypertension, and some hereditary syndromes increase risk.")
       ),
-
+      
       "Colon" = tagList(
         p(strong(em("Colorectal cancer"))),
         p("Colorectal cancer usually develops from polyps in the colon or rectum over years. 
@@ -69,7 +69,7 @@ server <- function(input, output, session) {
   
   # Gene Heat Map
   output$plot_heatmap <- renderPlot({
-    hm <- withProgress(message = "Loading Heatmap...", value = 0.5, {
+    withProgress(message = "Loading Heatmap...", value = 0.5, {
       req(input$selected_organ)
       expr_data <- get_cancer_expr(input$selected_organ)
       
@@ -94,11 +94,11 @@ server <- function(input, output, session) {
         main = paste0("Top ", n_genes, " Variable Genes (50 Random Tumor Samples)"),
         show_colnames = FALSE,
         show_rownames = TRUE,
-        fontsize_row = 10,
-        silent = TRUE
+        fontsize_row = 10
       )
     })
   })
+  
   
   # Race
   output$plot_race <- renderPlotly({
@@ -144,9 +144,9 @@ server <- function(input, output, session) {
     plot_ly(gender_df, 
             labels = ~gender, 
             values = ~n, 
-            type = "pie",
-            textposition = "inside",
-            textinfo = "label+percent",
+            type = 'pie',
+            textposition = 'inside',
+            textinfo = 'label+percent',
             marker = list(colors = classic_purple_gray),
             sort = FALSE) %>%
       layout(
@@ -194,7 +194,7 @@ server <- function(input, output, session) {
         showlegend = FALSE
       )
   })
-
+  
   # Download Data
   merged_data_reactive <- reactive({
     req(input$cancer_type) 
