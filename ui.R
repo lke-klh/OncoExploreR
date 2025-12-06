@@ -242,7 +242,7 @@ ui <- tagList(
       }
       
       .nav-tabs > li > a {
-      color: #614d6e;
+      color: #5B469E;
       font-weight: 500;
     }
       /* body */
@@ -454,11 +454,6 @@ ui <- tagList(
         position: fixed;
         bottom: 0;
         left: 0;
-      }
-      
-      .shiny-progress .progress-bar,
-      .progress-bar {
-        background-color: #7A658A;
       }
     "))
   ),

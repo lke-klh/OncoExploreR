@@ -126,9 +126,9 @@ simulate_gene_effect <- function(
 server <- function(input, output, session) {
 
   classic_purple_gray <- c(
-    "#7C75C4", "#A48FBD", "#C9A4BA", "#E3B4C2",
-    "#EBD4D0", "#7E7C48", "#949773", "#A39F53",
-    "#BFA7D5", "#D0B7E1", "#CDBDBC", "#DDD2C7"
+    "#7C75C4", "#C9A4BA", "#E3B4C2",
+    "#EBD4D0", "#7E7C48", "#A39F53",
+    "#BFA7D5", "#D0B7E1", "#CDBDBC"
   )
   
   output$organ_title <- renderText({
@@ -188,34 +188,32 @@ server <- function(input, output, session) {
   
   # Gene Heat Map
   output$plot_heatmap <- renderPlot({
-    withProgress(message = "Loading Heatmap...", value = 0.5, {
-      req(input$selected_organ)
-      expr_data <- get_cancer_expr(input$selected_organ)
+    req(input$selected_organ)
+    expr_data <- get_cancer_expr(input$selected_organ)
       
-      n_genes <- min(20, nrow(expr_data))
-      top_genes_data <- expr_data[1:n_genes, , drop = FALSE]
+    n_genes <- min(20, nrow(expr_data))
+    top_genes_data <- expr_data[1:n_genes, , drop = FALSE]
+    
+    if (ncol(top_genes_data) > 50) {
+      set.seed(123)
+      keep_idx <- sample(seq_len(ncol(top_genes_data)), 50)
+      top_genes_data <- top_genes_data[, keep_idx, drop = FALSE]
+    }
       
-      if (ncol(top_genes_data) > 50) {
-        set.seed(123)
-        keep_idx <- sample(seq_len(ncol(top_genes_data)), 50)
-        top_genes_data <- top_genes_data[, keep_idx, drop = FALSE]
-      }
+    top_genes_data[is.na(top_genes_data)] <- 0
+    top_genes_data[is.infinite(top_genes_data)] <- 0
       
-      top_genes_data[is.na(top_genes_data)] <- 0
-      top_genes_data[is.infinite(top_genes_data)] <- 0
-      
-      pheatmap(
-        top_genes_data,
-        cluster_rows = TRUE,
-        cluster_cols = FALSE,
-        scale = "none",
-        color = colorRampPalette(c("steelblue", "white", "darkred"))(50),
-        main = paste0("Top ", n_genes, " Variable Genes (from 50 Random Tumor Samples)"),
-        show_colnames = FALSE,
-        show_rownames = TRUE,
-        fontsize_row = 10
-      )
-    })
+    pheatmap(
+      top_genes_data,
+      cluster_rows = TRUE,
+      cluster_cols = FALSE,
+      scale = "none",
+      color = colorRampPalette(c("steelblue", "white", "darkred"))(50),
+      main = paste0("Top ", n_genes, " Variable Genes (from 50 Random Tumor Samples)"),
+      show_colnames = FALSE,
+      show_rownames = TRUE,
+      fontsize_row = 10
+    )
   })
   
   
@@ -352,15 +350,13 @@ server <- function(input, output, session) {
   
   rsf_fit_event <- eventReactive(input$run_sim, {
     clean_df <- clean_df_surv_event()
-    withProgress(message = "Fitting Simulation Data...", value = 0.2, {
-      set.seed(123)
-      rfsrc(
-        Surv(time, event) ~ age + gender + Gene_Expression,
-        data = clean_df,
-        ntree = 200,
-        importance = TRUE
-      )
-    })
+    set.seed(123)
+    rfsrc(
+      Surv(time, event) ~ age + gender + Gene_Expression,
+      data = clean_df,
+      ntree = 200,
+      importance = TRUE
+    )
   })
   
   sim_res_event <- eventReactive(input$run_sim, {
@@ -413,7 +409,10 @@ server <- function(input, output, session) {
           span(input$cancer_type_surv, style = "color: #911D2A; font-weight: 400;"),
           span("Cancer", style = "font-weight: 400;")
         ),
-        plotlyOutput("surv_curv", height = "500px")
+        withSpinner(plotlyOutput("surv_curv", height = "500px"),
+                    type = 4,
+                    color = "#7A658A",
+                    size = 1)
       )
     }
   })
@@ -426,8 +425,17 @@ server <- function(input, output, session) {
       )
     } else {
       tagList(
-        h3("Survival Gains at 3, 5, and 10 Years"),
-        plotlyOutput("surv_gain", height = "500px")
+        h3(
+          span("Survival Gains for Gene ", style = "font-weight: 400;"),
+          span(input$selected_gene, style = "color: #911D2A; font-weight: 400;"),
+          span(" in ", style = "font-weight: 400;"),
+          span(input$cancer_type_surv, style = "color: #911D2A; font-weight: 400;"),
+          span("Cancer", style = "font-weight: 400;")
+        ),
+        withSpinner(plotlyOutput("surv_gain", height = "500px"),
+                    type = 4,
+                    color = "#7A658A",
+                    size = 1)
       )
     }
   })
@@ -443,10 +451,8 @@ server <- function(input, output, session) {
       "Treated" = "#68B8CC"
     )
     
-    p <- ggplot(
-      res$avg_curve_df,
-      aes(x = time, y = mean, colour = scenario, fill = scenario)
-    ) +
+    p <- ggplot(res$avg_curve_df,
+      aes(x = time, y = mean, colour = scenario, fill = scenario)) +
       geom_ribbon(aes(ymin = lower, ymax = upper),
                   alpha = 0.35, show.legend = FALSE) +
       geom_line(linewidth = 1.2) +
@@ -463,17 +469,22 @@ server <- function(input, output, session) {
     res <- sim_res_event()
     req(res)
     
-    p <- ggplot(res$delta_hist_df, aes(x = delta)) +
-      geom_histogram(bins = 30, alpha = 0.7) +
+    plot_df <- res$delta_hist_df %>%
+      mutate(year_label = paste0(year, " Years"),
+             year_label = fct_reorder(year_label, as.numeric(year)))
+    
+    p <- ggplot(plot_df, aes(x = delta)) +
+      geom_histogram(bins = 30, alpha = 0.7, fill = "#696175") +
       geom_vline(xintercept = 0,
-                 linetype = "dashed", colour = "#911D2A") +
-      facet_wrap(~ year, nrow = 1) +
+                 linetype = "dashed", colour = "#CF303B") +
+      facet_wrap(~ year_label, nrow = 1) +
       labs(
-        x = "Change in survival prob (treated - baseline)",
+        x = "Change in Survival Probability (Treated vs. Baseline)",
         y = "Count"
       ) +
       theme_minimal() +
-      theme(plot.margin = margin(t = 10, r = 10, b = 20, l = 10))
+      theme(plot.margin = margin(t = 10, r = 10, b = 20, l = 10),
+            strip.text = element_text(size = 12, face = "bold"))
     
     ggplotly(p)
   })
@@ -481,11 +492,9 @@ server <- function(input, output, session) {
   
   # Download Data
   merged_data_reactive <- reactive({
-    withProgress(message = "Preparing Data Set...", value = 0.3, {
-      req(input$cancer_type_dl) 
-      obj <- get_cancer_object(input$cancer_type_dl)
-      return(obj$merged_data)
-    })
+    req(input$cancer_type_dl) 
+    obj <- get_cancer_object(input$cancer_type_dl)
+    return(obj$merged_data)
   })
   
   output$dl_data_preview <- renderTable({
