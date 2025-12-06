@@ -8,9 +8,9 @@ Exploration
 
 <p align="center">
 
-<img src="User Interface.png" alt="UI of OncoExploreR" width="700"><br>
+<img src="www/user_interface.png" alt="UI of OncoExploreR" width="700"><br>
 <em>Project website:
-<a href="https://keki030215.shinyapps.io/OncoExploreR/">
+<a href="https://lke-klh.shinyapps.io/OncoExploreR/">
 https://keki030215.shinyapps.io/OncoExploreR/</a></em>
 </p>
 
