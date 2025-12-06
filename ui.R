@@ -464,7 +464,7 @@ ui <- tagList(
   ),
   
   navbarPage(
-    title = "OncoExplorR",
+    title = "OncoExploreR",
     
     # Body Map Page
     tabPanel(
@@ -722,7 +722,7 @@ ui <- tagList(
     
     footer = tags$div(
       class = "app-footer",
-      p("© 2025 OncoExplorR | Developed with R Shiny & Plotly | Liuhan Ke, Ziyi Ou, Hailin Zhang")
+      p("© 2025 OncoExploreR | Developed with R Shiny & Plotly | Liuhan Ke, Ziyi Ou, Hailin Zhang")
     )
   )
 )
