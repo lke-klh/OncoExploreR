@@ -432,7 +432,7 @@ server <- function(input, output, session) {
           span(input$cancer_type_surv, style = "color: #911D2A; font-weight: 400;"),
           span("Cancer", style = "font-weight: 400;")
         ),
-        withSpinner(plotlyOutput("surv_gain", height = "500px"),
+        withSpinner(plotlyOutput("surv_gain", height = "400px"),
                     type = 4,
                     color = "#7A658A",
                     size = 1)
@@ -474,7 +474,7 @@ server <- function(input, output, session) {
              year_label = fct_reorder(year_label, as.numeric(year)))
     
     p <- ggplot(plot_df, aes(x = delta)) +
-      geom_histogram(bins = 30, alpha = 0.7, fill = "#696175") +
+      geom_histogram(bins = 30, alpha = 0.7, fill = "#9990A6") +
       geom_vline(xintercept = 0,
                  linetype = "dashed", colour = "#CF303B") +
       facet_wrap(~ year_label, nrow = 1) +
