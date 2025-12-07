@@ -9,6 +9,7 @@ library(edgeR)
 library(limma)
 library(DESeq2)
 library(pROC)
+library(DT)
 
 deg_simulation <- function(data, N, pct,
                            logFC_vec = c(0.5, 1.0, 1.5),
@@ -16,209 +17,153 @@ deg_simulation <- function(data, N, pct,
                            seed = 1234) {
   set.seed(seed)
   
-  count <- as.matrix(data)
-  count <- 2^count - 1
-  count[count < 0] <- 0
-  count <- round(count)
-  
-  G <- nrow(count)
+  counts <- round(pmax(2^as.matrix(data) - 1, 0))
+  G <- nrow(counts)
   if (G == 0) stop("No genes in input data.")
   
-  gene_names <- rownames(count)
-  base_mu <- rowMeans(count)
-  base_mu[base_mu <= 0] <- 0.1
-  
+  genes <- rownames(counts)
+  base_mu <- pmax(rowMeans(counts), 0.1)
   size_g <- 1 / phi
   
+  # Differentially expressed genes
   n_DE <- round(G * pct)
-  DE_idx <- sample.int(G, n_DE)
+  DE_idx <- sample(G, n_DE)
+  DE_up  <- DE_idx[seq_len(ceiling(n_DE / 2))]
+  DE_down <- setdiff(DE_idx, DE_up)
   
-  n_up  <- ceiling(n_DE / 2)
-  DE_up_idx   <- DE_idx[seq_len(n_up)]
-  DE_down_idx <- setdiff(DE_idx, DE_up_idx)
+  direction <- rep(0, G)
+  direction[DE_up]   <- 1
+  direction[DE_down] <- -1
+  names(direction) <- genes
   
-  DE_list <- gene_names[DE_idx]
-  
-  direction <- integer(G)
-  direction[DE_up_idx]   <- 1
-  direction[DE_down_idx] <- -1
-  names(direction) <- gene_names
-  
-  group <- factor(c(rep("healthy", N), rep("patient", N)))
+  group <- factor(rep(c("healthy", "patient"), each = N))
   sample_names <- c(paste0("healthy", seq_len(N)),
                     paste0("patient", seq_len(N)))
   
-  expr_data <- vector("list", length(logFC_vec))
-  names(expr_data) <- paste0("logFC_", logFC_vec)
+  simulate_condition <- function(mu) {
+    matrix(
+      rnbinom(G * N, mu = rep(mu, each = N), size = size_g),
+      nrow = G, ncol = N, byrow = TRUE
+    )
+  }
   
-  for (lfc in logFC_vec) {
-    nm <- paste0("logFC_", lfc)
+  expr_data <- lapply(logFC_vec, function(lfc) {
     fc <- 2^lfc
     
     muA <- base_mu
     muB <- base_mu
-    muB[DE_up_idx]   <- muA[DE_up_idx] * fc
-    muB[DE_down_idx] <- muA[DE_down_idx] / fc
+    muB[DE_up]   <- muA[DE_up] * fc
+    muB[DE_down] <- muA[DE_down] / fc
     
-    sim_A <- matrix(
-      rnbinom(G * N, mu = rep(muA, each = N), size = size_g),
-      nrow = G, ncol = N, byrow = TRUE
-    )
-    sim_B <- matrix(
-      rnbinom(G * N, mu = rep(muB, each = N), size = size_g),
-      nrow = G, ncol = N, byrow = TRUE
-    )
+    sim_A <- simulate_condition(muA)
+    sim_B <- simulate_condition(muB)
     
-    sim_counts <- cbind(sim_A, sim_B)
-    rownames(sim_counts) <- gene_names
-    colnames(sim_counts) <- sample_names
+    sim <- cbind(sim_A, sim_B)
+    rownames(sim) <- genes
+    colnames(sim) <- sample_names
     
-    expr_data[[nm]] <- list(
-      counts = sim_counts,
-      group = group,
-      samples = sample_names
-    )
-    
-    rm(sim_A, sim_B, sim_counts, muA, muB); gc()
-  }
+    list(counts = sim, group = group, samples = sample_names)
+  })
+  
+  names(expr_data) <- paste0("logFC_", logFC_vec)
   
   list(
     expr_data = expr_data,
-    DE_list = DE_list,
-    DE_up = gene_names[DE_up_idx],
-    DE_down = gene_names[DE_down_idx],
+    DE_list = genes[DE_idx],
+    DE_up = genes[DE_up],
+    DE_down = genes[DE_down],
     direction = direction
   )
 }
 
 simulate_gene_effect <- function(
-    rsf_fit,
-    clean_df, 
-    age_input,
-    gender_input,
-    expr_baseline,
-    expr_treated,
+    rsf_fit, clean_df,
+    age_input, gender_input,
+    expr_baseline, expr_treated,
     N = 500,
     years = c(3, 5, 10),
-    expr_sd = 5.0
+    expr_sd = 5
 ) {
-  # input validation
   gender_factor <- factor(gender_input, levels = levels(clean_df$gender))
-  
   time_grid <- rsf_fit$time.interest
-  if (length(time_grid) == 0) stop("No time points in RSF model")
+  if (length(time_grid) == 0) stop("RSF has no time grid")
   
-  # gene range
-  gene_range <- range(clean_df$Gene_Expression, na.rm = TRUE)
-  clamp_gene <- function(x) pmin(pmax(x, gene_range[1]), gene_range[2])
-  
-  new_patients <- data.frame(
-    age = c(age_input, age_input),
-    gender = rep(gender_factor, 2),
-    Gene_Expression = c(expr_baseline, expr_treated)
-  )
-  
-  pred_single <- predict(rsf_fit, newdata = new_patients)
-  surv_mat_single <- pred_single$survival
-  
-  single_curve_df <- data.frame(
-    time = rep(time_grid, times = nrow(surv_mat_single)),
-    survival = as.vector(t(surv_mat_single)),
-    group = factor(rep(c("Baseline expression","Treated expression"),
-                       each = length(time_grid)))
-  )
-  
-  rm(pred_single, surv_mat_single); gc()
-  
-  # simulation
-  gene_base_vec  <- clamp_gene(rnorm(N, mean = expr_baseline, sd = expr_sd))
-  gene_treat_vec <- clamp_gene(rnorm(N, mean = expr_treated, sd = expr_sd))
-  
-  base_patients <- data.frame(
+  # Clamp gene values to observed range
+  clamp <- function(x) pmin(pmax(x, min(clean_df$Gene_Expression)), 
+                            max(clean_df$Gene_Expression))
+
+# Predict survival
+surv_pred <- function(df) predict(rsf_fit, newdata = df)$survival
+
+df_single <- data.frame(
+  age = rep(age_input, 2),
+  gender = gender_factor,
+  Gene_Expression = c(expr_baseline, expr_treated)
+)
+
+S_single <- surv_pred(df_single)
+
+single_curve_df <- data.frame(
+  time = rep(time_grid, each = 2),
+  survival = as.vector(t(S_single)),
+  group = factor(rep(c("Baseline expression", "Treated expression"),
+                     times = length(time_grid)))
+)
+
+# simulation
+sim_patients <- function(expr_mean) {
+  data.frame(
     age = rep(age_input, N),
-    gender = rep(gender_factor, N),
-    Gene_Expression = gene_base_vec
-  )
-  treat_patients <- data.frame(
-    age = rep(age_input, N),
-    gender = rep(gender_factor, N),
-    Gene_Expression = gene_treat_vec
-  )
-  
-  # pred_baseline
-  pred_base <- predict(rsf_fit, newdata = base_patients)
-  S_base <- pred_base$survival  # N x T
-  
-  # compute summary stats
-  mean_base <- colMeans(S_base)
-  q25_base  <- apply(S_base, 2, quantile, 0.25)
-  q75_base  <- apply(S_base, 2, quantile, 0.75)
-  
-  # prepare avg df
-  avg_base_df <- data.frame(
-    time = time_grid,
-    mean = mean_base,
-    lower = q25_base,
-    upper = q75_base,
-    scenario = "Baseline"
-  )
-  
-  # baseline survival
-  t_star <- years * 365
-  idx_vec <- sapply(t_star, function(t) which.min(abs(time_grid - t)))
-  
-  S_base_years <- S_base[, idx_vec, drop = FALSE]
-  
-  rm(S_base, pred_base); gc()
-  
-  # pred-treated
-  pred_treat <- predict(rsf_fit, newdata = treat_patients)
-  S_treat <- pred_treat$survival
-  
-  mean_treat <- colMeans(S_treat)
-  q25_treat  <- apply(S_treat, 2, quantile, 0.25)
-  q75_treat  <- apply(S_treat, 2, quantile, 0.75)
-  
-  avg_treat_df <- data.frame(
-    time = time_grid,
-    mean = mean_treat,
-    lower = q25_treat,
-    upper = q75_treat,
-    scenario = "Treated"
-  )
-  
-  S_treat_years <- S_treat[, idx_vec, drop = FALSE]
-  
-  rm(S_treat, pred_treat); gc()
-  
-  # Survival Gains
-  delta_S <- S_treat_years - S_base_years
-  
-  delta_hist_df <- data.frame(
-    delta = as.vector(delta_S),
-    year = factor(rep(years, each = N))
-  )
-  
-  summary_list <- lapply(seq_along(years), function(j) {
-    list(
-      year = years[j],
-      mean_diff = mean(delta_S[, j]),
-      quantiles = quantile(delta_S[, j], c(0.1, 0.5, 0.9))
-    )
-  })
-  
-  rm(delta_S, S_base_years, S_treat_years); gc()
-  
-  # combined avg df
-  avg_curve_df <- rbind(avg_base_df, avg_treat_df)
-  
-  list(
-    single_curve_df = single_curve_df,
-    avg_curve_df = avg_curve_df,
-    delta_hist_df = delta_hist_df,
-    summary = summary_list
+    gender = gender_factor,
+    Gene_Expression = clamp(rnorm(N, mean = expr_mean, sd = expr_sd))
   )
 }
+
+S_base <- surv_pred(sim_patients(expr_baseline))
+S_treat <- surv_pred(sim_patients(expr_treated))
+
+# survival curves
+summarize_survival <- function(S, scenario) {
+  data.frame(
+    time = time_grid,
+    mean  = colMeans(S),
+    lower = apply(S, 2, quantile, 0.25),
+    upper = apply(S, 2, quantile, 0.75),
+    scenario = scenario
+  )
+}
+
+avg_curve_df <- rbind(
+  summarize_survival(S_base, "Baseline"),
+  summarize_survival(S_treat, "Treated")
+)
+
+# survival gains
+idx_years <- sapply(years * 365, function(t) which.min(abs(time_grid - t)))
+delta <- S_treat[, idx_years, drop = FALSE] - 
+  S_base[, idx_years, drop = FALSE]
+
+delta_hist_df <- data.frame(
+  delta = as.vector(delta),
+  year = factor(rep(years, each = N))
+)
+
+summary_list <- lapply(seq_along(years), function(i) {
+  list(
+    year = years[i],
+    mean_diff = mean(delta[, i]),
+    quantiles = quantile(delta[, i], c(0.1, 0.5, 0.9))
+  )
+})
+
+list(
+  single_curve_df = single_curve_df,
+  avg_curve_df = avg_curve_df,
+  delta_hist_df = delta_hist_df,
+  summary = summary_list
+)
+}
+
 
 server <- function(input, output, session) {
   
@@ -227,6 +172,19 @@ server <- function(input, output, session) {
     "#EBD4D0", "#7E7C48", "#A39F53",
     "#BFA7D5", "#D0B7E1", "#CDBDBC"
   )
+  
+  bodymap_data <- reactive({
+    req(input$selected_organ)
+    get_merged_data(input$selected_organ)
+  })
+  
+  organ_ready <- eventReactive(input$selected_organ, {
+    df <- bodymap_data()
+    df$race <- as.character(df$race)
+    df$gender <- as.character(df$gender)
+    df
+  })
+  
   
   output$organ_title <- renderText({
     req(input$selected_organ)
@@ -316,12 +274,13 @@ server <- function(input, output, session) {
   
   # Race
   output$plot_race <- renderPlotly({
-    req(input$selected_organ)
-    df <- get_merged_data(input$selected_organ)
+    req(input$analysis_tabs == "Race Breakdown")
+    df <- organ_ready()
     req(df)
     
     race_df <- df %>%
-      dplyr::count(race) %>%
+      dplyr::group_by(race) %>%
+      dplyr::summarize(n = n()) %>% 
       dplyr::mutate(race = reorder(race, n, decreasing = TRUE))
     
     plot_ly(race_df, 
@@ -344,8 +303,8 @@ server <- function(input, output, session) {
   
   # Sex 
   output$plot_gender <- renderPlotly({
-    req(input$selected_organ)
-    df <- get_merged_data(input$selected_organ)
+    req(input$analysis_tabs == "Sex Breakdown")
+    df <- organ_ready()
     req(df)
     
     gender_df <- df %>%
@@ -373,8 +332,8 @@ server <- function(input, output, session) {
   
   # Age
   output$plot_age <- renderPlotly({
-    req(input$selected_organ)
-    df <- get_merged_data(input$selected_organ)
+    req(input$analysis_tabs == "Age Breakdown")
+    df <- organ_ready()
     req(df)
     
     breaks <- c(0, 50, 60, 70, 80, 120)
@@ -584,7 +543,7 @@ server <- function(input, output, session) {
         phi = phi_sim
       )
       
-      incProgress(0.4, detail = "Running DE Methods...")
+      incProgress(0.4, detail = "Running DE Methods")
       
       out_df_list <- list()
       
@@ -694,37 +653,43 @@ server <- function(input, output, session) {
   })
   
   surv_analysis <- eventReactive(input$run_sim, {
-    
-    clean_df <- get_surv_df(input$cancer_type_surv)
-    gene_col <- input$selected_gene
-    clean_df$Gene_Expression <- suppressWarnings(as.numeric(clean_df[[gene_col]]))
-    
-    # fit RSF
-    rsf_fit <- rfsrc(
-      Surv(time, event) ~ age + gender + Gene_Expression,
-      data = clean_df,
-      ntree = 200,
-      nodesize = 15,
-      importance = FALSE
-    )
-    
-    # run simulation
-    out <- simulate_gene_effect(
-      rsf_fit = rsf_fit,
-      clean_df = clean_df,
-      age_input = input$age_input,
-      gender_input = input$gender_input,
-      expr_baseline = median(clean_df$Gene_Expression),
-      expr_treated = input$expr_treated,
-      N = 200,               
-      years = c(3, 5, 10),
-      expr_sd = 5
-    )
-    
-    # free memory
-    rm(rsf_fit, clean_df); gc()
-    
-    return(out)
+    withProgress(message = "Running Survival Analysis...", value = 0, {
+      
+      incProgress(0.2, detail = "Loading and cleaning data")
+      clean_df <- get_surv_df(input$cancer_type_surv)
+      gene_col <- input$selected_gene
+      clean_df$Gene_Expression <- suppressWarnings(as.numeric(clean_df[[gene_col]]))
+      
+      incProgress(0.45, detail = "Fitting Random Survival Forest")
+      # fit RSF
+      rsf_fit <- rfsrc(
+        Surv(time, event) ~ age + gender + Gene_Expression,
+        data = clean_df,
+        ntree = 200,
+        nodesize = 15,
+        importance = FALSE
+      )
+      
+      incProgress(0.75, detail = "Simulating expression scenarios")
+      # run simulation
+      out <- simulate_gene_effect(
+        rsf_fit = rsf_fit,
+        clean_df = clean_df,
+        age_input = input$age_input,
+        gender_input = input$gender_input,
+        expr_baseline = median(clean_df$Gene_Expression),
+        expr_treated = input$expr_treated,
+        N = 200,               
+        years = c(3, 5, 10),
+        expr_sd = 5
+      )
+      
+      incProgress(1, detail = "Finalizing results")
+      # free memory
+      rm(rsf_fit, clean_df); gc()
+      
+      return(out)
+    })
   })
   
   
@@ -833,11 +798,19 @@ server <- function(input, output, session) {
     get_merged_data(input$cancer_type_dl)
   })
   
-  output$dl_data_preview <- renderTable({
-    df <- merged_data_reactive()
-    head(df, 20)
+  output$dl_data_preview <- renderDT({
+    withProgress(message = "Loading preview...", value = 1, {
+      datatable(
+        head(merged_data_reactive(), 20),
+        options = list(
+          scrollX = TRUE,
+          dom = "frtip",
+          pageLength = 20
+        )
+      )
+    })
   })
-  
+
   output$download_data_btn <- downloadHandler(
     filename = function() {
       paste0(input$cancer_type_dl, "_Merged_Data.csv")

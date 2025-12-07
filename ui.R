@@ -620,21 +620,30 @@ ui <- tagList(
                         tabPanel(
                           title = "Race Breakdown",
                           br(),
-                          plotlyOutput("plot_race", height = "500px")
+                          withSpinner(plotlyOutput("plot_race", height = "500px"),  
+                                      type = 4,
+                                      color = "#7A658A",
+                                      size = 1)
                         ),
                         
                         # Tab 3: Sex
                         tabPanel(
                           title = "Sex Breakdown",
                           br(),
-                          plotlyOutput("plot_gender", height = "500px")
+                          withSpinner(plotlyOutput("plot_gender", height = "500px"),  
+                                      type = 4,
+                                      color = "#7A658A",
+                                      size = 1)
                         ),
                         
                         # Tab 4: Age
                         tabPanel(
                           title = "Age Breakdown",
                           br(),
-                          plotlyOutput("plot_age", width = "800px", height = "500px")
+                          withSpinner(plotlyOutput("plot_age", height = "500px"),  
+                                      type = 4,
+                                      color = "#7A658A",
+                                      size = 1)
                         )
                       )
                     )
@@ -702,7 +711,7 @@ ui <- tagList(
           div(
             style = "overflow-x: scroll; border: 1px solid #eee; padding: 10px;", 
             withSpinner(
-              tableOutput("dl_data_preview"), 
+              DTOutput("dl_data_preview"), 
               type = 4,
               color = "#7A658A",
               size = 1
