@@ -4,3 +4,5 @@ cache/
 /top2000/
 /top2000/
 /top500/
+.DS_Store
+.Rhistory

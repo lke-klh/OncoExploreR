@@ -11,7 +11,6 @@ suppressPackageStartupMessages({
   library(limma)
   library(DESeq2)
   library(pROC)
-  library(DT)
 })
 
 app_config <- list(
@@ -66,7 +65,8 @@ load_expr_log <- function(ct) {
   file <- file.path(app_config$data_dir,
                     paste0("TCGA_", toupper(code), "_merged_2000genes.csv"))
   
-  df <- suppressMessages(readr::read_csv(file, show_col_types = FALSE))
+  df <- data.table::fread(file)
+  data.table::setDF(df)
   
   gene_cols <- setdiff(
     names(df)[sapply(df, is.numeric)],

@@ -9,7 +9,6 @@ library(edgeR)
 library(limma)
 library(DESeq2)
 library(pROC)
-library(DT)
 
 deg_simulation <- function(data, N, pct,
                            logFC_vec = c(0.5, 1.0, 1.5),
