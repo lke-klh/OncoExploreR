@@ -37,6 +37,10 @@ clinical_fixed_cols <- c(
 
 cache_path <- function(ct, type) {
   code <- cancer_codes[[ct]]
+  
+  dir <- app_config$cache_dir
+  if (!dir.exists(dir)) dir.create(dir, recursive = TRUE, showWarnings = FALSE)
+  
   file.path(app_config$cache_dir, paste0(type, "_", code, ".rds"))
 }
 
