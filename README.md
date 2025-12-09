@@ -22,8 +22,6 @@ https://lke-klh.shinyapps.io/OncoExploreR/</a></em>
 > <a href="#4-installation-">4. Installation</a><br>
 > <a href="#5-acknowledgments-">5. Acknowledge</a><br>
 
-</br>
-
 ## 1. Overview 🌟
 
 OncoExploreR (Oncology Explorer) is an interactive Shiny application
