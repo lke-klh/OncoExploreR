@@ -11,7 +11,7 @@ Exploration
 <img src="www/user_interface.png" alt="UI of OncoExploreR" width="700"><br>
 <em>Project website:
 <a href="https://lke-klh.shinyapps.io/OncoExploreR/">
-https://keki030215.shinyapps.io/OncoExploreR/</a></em>
+https://lke-klh.shinyapps.io/OncoExploreR/</a></em>
 </p>
 
 # 1. Overview 🌟
@@ -199,7 +199,7 @@ cross-patient variability.
 
 You can directly access the app via the deployed Shiny server:
 
-    https://keki030215.shinyapps.io/OncoExploreR/
+    https://lke-klh.shinyapps.io/OncoExploreR/
 
 ## 4.2 Run Locally 🖥️
 
