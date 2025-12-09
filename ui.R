@@ -701,17 +701,19 @@ ui <- tagList(
           width = 8,
           h3("Download Merged Data"),
           p("Download the fully merged clinical and genomic dataset for the cancer type selected in the sidebar."),
+          p("Data preview only displays the first 20 rows and top 20 genes, 
+            the merged CSV file would contain all samples and the top 2000 genes."),
           br(),
           
           downloadButton("download_data_btn", "Merged Data (.csv)", class = "btn-default"),
           
           tags$hr(),
           
-          h4("Preview (Top 20 Rows)"),
+          h4("Preview (Top 20 Rows with Top 20 Genes)"),
           div(
             style = "overflow-x: scroll; border: 1px solid #eee; padding: 10px;", 
             withSpinner(
-              DTOutput("dl_data_preview"), 
+              tableOutput("dl_data_preview"), 
               type = 4,
               color = "#7A658A",
               size = 1

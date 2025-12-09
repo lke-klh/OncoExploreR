@@ -691,7 +691,13 @@ server <- function(input, output, session) {
     })
   })
   
+  surv_title_gene <- eventReactive(input$run_sim, {
+    isolate(input$selected_gene)
+  })
   
+  surv_title_cancer <- eventReactive(input$run_sim, {
+    isolate(input$cancer_type_surv)
+  })
   
   output$surv_curv_ui <- renderUI({
     if (input$run_sim == 0) {
@@ -705,9 +711,9 @@ server <- function(input, output, session) {
       tagList(
         h3(
           span("Survival Curves for Gene ", style = "font-weight: 400;"),
-          span(input$selected_gene, style = "color: #911D2A; font-weight: 400;"),
+          span(surv_title_gene(), style = "color: #911D2A; font-weight: 400;"),
           span(" in ", style = "font-weight: 400;"),
-          span(input$cancer_type_surv, style = "color: #911D2A; font-weight: 400;"),
+          span(surv_title_cancer(), style = "color: #911D2A; font-weight: 400;"),
           span("Cancer", style = "font-weight: 400;")
         ),
         withSpinner(plotlyOutput("surv_curv", height = "500px"),
@@ -728,9 +734,9 @@ server <- function(input, output, session) {
       tagList(
         h3(
           span("Survival Gains for Gene ", style = "font-weight: 400;"),
-          span(input$selected_gene, style = "color: #911D2A; font-weight: 400;"),
+          span(surv_title_gene(), style = "color: #911D2A; font-weight: 400;"),
           span(" in ", style = "font-weight: 400;"),
-          span(input$cancer_type_surv, style = "color: #911D2A; font-weight: 400;"),
+          span(surv_title_cancer(), style = "color: #911D2A; font-weight: 400;"),
           span("Cancer", style = "font-weight: 400;")
         ),
         withSpinner(plotlyOutput("surv_gain", height = "400px"),
@@ -797,16 +803,10 @@ server <- function(input, output, session) {
     get_merged_data(input$cancer_type_dl)
   })
   
-  output$dl_data_preview <- renderDT({
+  output$dl_data_preview <- renderTable({
     withProgress(message = "Loading preview...", value = 1, {
-      datatable(
-        head(merged_data_reactive(), 20),
-        options = list(
-          scrollX = TRUE,
-          dom = "frtip",
-          pageLength = 20
-        )
-      )
+      df <- merged_data_reactive()
+      df[1:20, 1:31]
     })
   })
 
