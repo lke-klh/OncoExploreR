@@ -731,3 +731,5 @@ ui <- tagList(
 )
 
 shinyUI(ui)
+
+
